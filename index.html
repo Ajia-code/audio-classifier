@@ -1,29 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/audio@latest"></script>
+  <title>Audio Classifier</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 </head>
 
 <body>
+  <h3>Teachable Machine Audio Model</h3>
+  <button onclick="init()">Start Listening</button>
+  <div id="label-container"></div>
+
 <script>
-const URL = "https://teachablemachine.withgoogle.com/models/YOUR_MODEL/";
+const URL = "https://teachablemachine.withgoogle.com/models/90jqtMa72/";
 
-async function init() {
-  const model = await tmAudio.load(URL + "model.json", URL + "metadata.json");
-  const recognizer = await model.createRecognizer();
+let recognizer;
 
-  await recognizer.listen(result => {
-    const scores = result.scores;
-    const maxIndex = scores.indexOf(Math.max(...scores));
-    const label = model.wordLabels()[maxIndex];
+async function createModel() {
+    const checkpointURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
 
-    window.AppInventor.setWebViewString(label);
+    recognizer = speechCommands.create(
+        "BROWSER_FFT",
+        undefined,
+        checkpointURL,
+        metadataURL
+    );
 
-  }, { probabilityThreshold: 0.75 });
+    await recognizer.ensureModelLoaded();
 }
 
-init();
+async function init() {
+    await createModel();
+
+    const classLabels = recognizer.wordLabels();
+    const labelContainer = document.getElementById("label-container");
+
+    labelContainer.innerHTML = ""; // clear previous
+
+    for (let i = 0; i < classLabels.length; i++) {
+        labelContainer.appendChild(document.createElement("div"));
+    }
+
+    recognizer.listen(result => {
+        const scores = result.scores;
+
+        let maxIndex = scores.indexOf(Math.max(...scores));
+        let label = classLabels[maxIndex];
+
+        // Display all scores
+        for (let i = 0; i < classLabels.length; i++) {
+            const classPrediction =
+                classLabels[i] + ": " + scores[i].toFixed(2);
+            labelContainer.childNodes[i].innerHTML = classPrediction;
+        }
+
+        // 🔥 SEND BEST RESULT TO APP INVENTOR
+        if (window.AppInventor) {
+            window.AppInventor.setWebViewString(label);
+        }
+
+    }, {
+        probabilityThreshold: 0.75,
+        invokeCallbackOnNoiseAndUnknown: true,
+        overlapFactor: 0.5
+    });
+}
 </script>
+
 </body>
 </html>
